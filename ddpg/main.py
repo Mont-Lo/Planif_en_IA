@@ -11,6 +11,9 @@ import networks as network
 import utils
 import ddpg
 
+from ale_py import ALEInterface
+ale = ALEInterface()
+
 np.random.seed(0)
 random.seed(0)
 torch.manual_seed(0)
@@ -34,44 +37,15 @@ else:
 device = torch.device(_device)
 print("Run on:", device)
 
+# Liste tous les environnements enregistrés
+envs = list(gym.envs.registry.keys())
 
+# Filtre uniquement les environnements Atari (ceux qui commencent par "ALE/")
+atari_envs = [env for env in envs if "ALE/" in env]
+print(atari_envs)
 
 # Initiate the environment
-env = gym.make('highway-v0', render_mode='rgb_array')
-
-# Environment configuration
-env.configure(
-    {"observation": {
-        "type": "Kinematics",
-        "vehicles_count": 7,
-        "features": ["presence", "x", "y", "vx", "vy"],
-    },
-
-        "action": {
-            "type": "ContinuousAction",
-            "longitudinal": True,
-            "lateral": True
-        },
-        "absolute": False,
-        "lanes_count": 4,
-        "reward_speed_range": [40, 60],
-        "simulation_frequency": 15,
-        "vehicles_count": 50,
-        "policy_frequency": 10,
-        "initial_spacing": 5,
-        "other_vehicles_type": "highway_env.vehicle.behavior.IDMVehicle",
-        "duration": 20,
-        "collision_reward": -2,
-        "action_reward": -0.3,
-        "screen_width": 600,
-        "screen_height": 300,
-        "centering_position": [0.3, 0.5],
-        "scaling": 7,
-        "show_trajectories": False,
-        "render_agent": True,
-        "offscreen_rendering": False
-    })
-
+env = gym.make("ALE/Freeway-v5", render_mode="human") 
 
 # Start the training process
 state = env.reset()
@@ -81,7 +55,7 @@ state_dim = env.observation_space.shape[0] * env.observation_space.shape[1]
 state_dim_a = [env.observation_space.shape[0], env.observation_space.shape[1]]
 
 # Get action dimension
-action_dim = env.action_space.shape[0]
+action_dim = env.action_space.n
 
 # Initialize Actor and Critic network
 actor = network.Actor_network(state_dim_a, action_dim).to(device)
@@ -94,8 +68,6 @@ target_critic = copy.deepcopy(critic).to(device)
 # Initialize agent
 ddpg_agent = ddpg.DDPG_agent(env, actor, critic, target_actor, target_critic, device)
 
-
-# Là on peut faire un truc pour le two-steps DDPG
 # Load the model parameters (To continue training on the previous trained model only)
 #ddpg_agent.load("model", "model_final.pt")
 
@@ -127,12 +99,3 @@ stdev_avg_reward = stat.stdev(avg_training)
 
 print(f"Mean of Avg test reward: {mean_avg_reward:.3f}")
 print(f"Stdev of Avg test reward: {stdev_avg_reward:.3f}")
-
-
-
-
-
-
-
-
-
