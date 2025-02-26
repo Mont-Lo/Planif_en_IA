@@ -94,6 +94,8 @@ target_critic = copy.deepcopy(critic).to(device)
 # Initialize agent
 ddpg_agent = ddpg.DDPG_agent(env, actor, critic, target_actor, target_critic, device)
 
+
+# Là on peut faire un truc pour le two-steps DDPG
 # Load the model parameters (To continue training on the previous trained model only)
 #ddpg_agent.load("model", "model_final.pt")
 

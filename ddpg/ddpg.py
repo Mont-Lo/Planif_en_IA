@@ -132,6 +132,7 @@ class DDPG_agent():
 
         time_start = time()
 
+        # tqdm permet de voir l'avancer de la boucle (c joli)
         for i in tqdm.tqdm(range(episodes)):
 
             done = False
@@ -163,7 +164,11 @@ class DDPG_agent():
                 num_veh = state_a.shape[0]
                 front_v = False
 
-                # Set done condition and giving a penalty if the ego vehicle moves outside the road boundary
+                # A changer (le code d'origine porte sur une voiture qui en évite d'autres)
+                # Donc pas notre truc
+
+                # Remplacer par des "si la voiture sur la ligne est à x pixels du poulet, malus/bonus" ?
+                """ # Set done condition and giving a penalty if the ego vehicle moves outside the road boundary
                 if reward == 0:
                     reward = -3
                     done = True
@@ -201,7 +206,7 @@ class DDPG_agent():
                 # Penalize for making a very quick movement in the y-axis
                 if next_state_a[0][4].item() > 0.2:
                     reward -= 0.4
-                    done = True
+                    done = True """
                 # Checking if the training reaches the maximum steps on the episode
                 if step == 300:
                     done = True
