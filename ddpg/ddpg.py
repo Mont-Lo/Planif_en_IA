@@ -40,7 +40,7 @@ class DDPG_agent():
         self.env = env
 
         # init OU noise
-        self.noise_o = noise.OrnsteinUhlenbeckNoise(2, theta=0.27, sigma=0.27)
+        self.noise_o = noise.OrnsteinUhlenbeckNoise(3, theta=0.27, sigma=0.27)
 
         self.critic_optimizer = optim.Adam(self.critic_net.parameters(), lr=self.lr_c)
         self.actor_optimizer = optim.Adam(self.actor_net.parameters(), lr=self.lr_a)
@@ -63,7 +63,10 @@ class DDPG_agent():
         :param state: The given state
         :return: action values consisting of the throttle and steering values
         """
-        state = torch.FloatTensor(state).unsqueeze(0).unsqueeze(0).to(self.device)
+        state = state.float().unsqueeze(0).to(self.device)
+        state = state.permute(0, 3, 1, 2)
+        #print("Taille de state après transformation :", state.shape)
+
         with torch.no_grad():
             action = self.actor_net.forward(state)
         return action
@@ -128,7 +131,7 @@ class DDPG_agent():
         """
         Training the agent
         """
-        episodes = 3000
+        episodes = 2
 
         time_start = time()
 
@@ -149,11 +152,15 @@ class DDPG_agent():
                 action = self.get_action(state_a)[0] # Get action from the Actor network
 
                 # Add noise to action to encourage exploration
+                #print("Action shape:", action.shape)
+                #print("Noise shape:", noise.shape)
+
                 action = np.clip(action.cpu() + noise, -1.0, 1.0)
                 action = action.detach().cpu().numpy()
 
 
                 # Move to the next time step with the action
+                action = int(action.argmax())  # Prend l'action avec la plus haute valeur     
                 next_state, reward, done, truncated, info = self.env.step(action)
                 next_state_a = torch.tensor(next_state)
 
@@ -208,7 +215,7 @@ class DDPG_agent():
                     reward -= 0.4
                     done = True """
                 # Checking if the training reaches the maximum steps on the episode
-                if step == 300:
+                if step == 10:
                     done = True
 
                 #######################################################

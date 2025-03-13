@@ -15,7 +15,7 @@ class Critic_network(nn.Module):
         kernel = 2
         padding = 0
         stride = 1
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1)
         self.conv2 = nn.Conv2d(64, 128, kernel_size=kernel, stride=1)
         self.conv3 = nn.Conv2d(128, 128, kernel_size=kernel, stride=1)
 
@@ -38,6 +38,7 @@ class Critic_network(nn.Module):
         x = F.relu(self.conv3(x))
         x = torch.flatten(x, 1)
 
+        action = action.float()
         x = torch.cat([x, action], 1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
@@ -74,7 +75,7 @@ class Actor_network(nn.Module):
         padding = 0
         stride = 1
 
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=stride)
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=stride)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=kernel, stride=stride)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=kernel, stride=stride)
 
