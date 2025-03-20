@@ -46,7 +46,7 @@ atari_envs = [env for env in envs if "ALE/" in env]
 print(atari_envs)
 
 # Initiate the environment
-env = gym.make("ALE/Freeway-v5") 
+env = gym.make("ALE/Freeway-v5", render_mode="human") 
 
 # Start the training process
 state = env.reset()

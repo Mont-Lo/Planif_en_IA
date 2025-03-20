@@ -91,7 +91,7 @@ def eval_agent(agent, env, fname, device, load=False):
             if i == 10:
                 done = True
 
-            #env.render()
+            env.render()
         test_reward.append(ep_reward)
         avg_reward.append(np.mean(test_reward))
 
