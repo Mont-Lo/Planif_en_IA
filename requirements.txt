@@ -1,0 +1,14 @@
+torch                           == 2.2.0
+matplotlib                      == 3.5.1
+pyglet                          == 1.5.15
+gymnasium                       == 0.28.1
+gymnasium[classic-control]      == 0.28.1
+gymnasium[atari]
+PyVirtualDisplay                == 3.0
+jupyterlab                      == 3.6.7
+moviepy                         == 1.0.3
+
+PyVirtualDisplay                == 3.0
+python-opengl
+ffmpeg
+xvfb
