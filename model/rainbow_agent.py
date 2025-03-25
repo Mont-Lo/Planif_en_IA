@@ -1,6 +1,6 @@
 from buffers import PrioritizedReplayBuffer, ReplayBuffer
 from model.nn_rainbow import Network
-from utils.preprocessing import preprocess_observation
+from utils.processing import preprocess_observation
 from typing import Dict, List, Tuple
 import gymnasium as gym
 import matplotlib.pyplot as plt
