@@ -129,6 +129,7 @@ class DQNAgent:
 
         # mode: train / test
         self.is_test = False
+        self.num_video = 0
 
     def select_action(self, state: np.ndarray) -> np.ndarray:
         """Select an action from the input state."""
@@ -271,6 +272,7 @@ class DQNAgent:
 
         # for recording a video
         naive_env = self.env
+        video_folder = f"{video_folder}{self.num_video}"
         self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
 
         state, _ = self.env.reset(seed=self.seed)
@@ -289,6 +291,8 @@ class DQNAgent:
 
         # reset
         self.env = naive_env
+
+        self.num_video += 1
 
     def _compute_dqn_loss(self, samples: Dict[str, np.ndarray], gamma: float) -> torch.Tensor:
         """Return categorical dqn loss."""
