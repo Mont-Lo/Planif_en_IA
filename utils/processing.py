@@ -32,8 +32,17 @@ def ipython_show_video(path: str) -> None:
 
 
 def show_latest_video(video_folder: str) -> str:
-    """Show the most recently recorded video from video folder."""
-    list_of_files = glob.glob(os.path.join(video_folder, "*.mp4"))
+    """Show the most recently recorded video from any subfolder in `videos_folder`."""
+    # Chercher toutes les vidéos dans les sous-dossiers (ex: videos_folder/0/*.mp4)
+    list_of_files = glob.glob(os.path.join(video_folder, "*", "*.mp4"))
+
+    if not list_of_files:
+        print("Aucune vidéo trouvée.")
+        return ""
+
+    # Trouver la vidéo la plus récente
     latest_file = max(list_of_files, key=os.path.getctime)
+
+    # Afficher la vidéo
     ipython_show_video(latest_file)
     return latest_file

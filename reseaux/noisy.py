@@ -3,6 +3,13 @@ import torch.nn as nn
 import math
 import torch.nn.functional as F
 
+# Ressources :
+# - https://github.com/higgsfield/RL-Adventure/blob/master/5.noisy%20dqn.ipynb
+# - https://github.com/Kaixhin/Rainbow/blob/master/model.py
+# Please see 05.noisy_net.ipynb
+# from rainbow-is-all-you-need 
+# for detailed description.
+
 class NoisyLinear(nn.Module):
     """Noisy linear module for NoisyNet.
 

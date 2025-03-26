@@ -1,4 +1,3 @@
-from noisy import NoisyLinear
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,6 +17,7 @@ class Network(nn.Module):
         self.out_dim = out_dim
         self.atom_size = atom_size
 
+
         # set common feature layer
         self.feature_layer = nn.Sequential(
             nn.Linear(in_dim, 128),
@@ -25,12 +25,18 @@ class Network(nn.Module):
         )
 
         # set advantage layer
-        self.advantage_hidden_layer = NoisyLinear(128, 128)
-        self.advantage_layer = NoisyLinear(128, out_dim * atom_size)
+        self.advantage_layer = nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, out_dim * atom_size),
+        )
 
         # set value layer
-        self.value_hidden_layer = NoisyLinear(128, 128)
-        self.value_layer = NoisyLinear(128, atom_size)
+        self.value_layer =  nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, atom_size),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward method implementation."""
@@ -42,23 +48,14 @@ class Network(nn.Module):
     def dist(self, x: torch.Tensor) -> torch.Tensor:
         """Get distribution for atoms."""
         feature = self.feature_layer(x)
-        adv_hid = F.relu(self.advantage_hidden_layer(feature))
-        val_hid = F.relu(self.value_hidden_layer(feature))
 
-        advantage = self.advantage_layer(adv_hid).view(
+        advantage = self.advantage_layer(feature).view(
             -1, self.out_dim, self.atom_size
         )
-        value = self.value_layer(val_hid).view(-1, 1, self.atom_size)
+        value = self.value_layer(feature).view(-1, 1, self.atom_size)
         q_atoms = value + advantage - advantage.mean(dim=1, keepdim=True)
 
         dist = F.softmax(q_atoms, dim=-1)
         dist = dist.clamp(min=1e-3)  # for avoiding nans
 
         return dist
-
-    def reset_noise(self):
-        """Reset all noisy layers."""
-        self.advantage_hidden_layer.reset_noise()
-        self.advantage_layer.reset_noise()
-        self.value_hidden_layer.reset_noise()
-        self.value_layer.reset_noise()

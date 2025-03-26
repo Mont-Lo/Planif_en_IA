@@ -1,7 +1,7 @@
-from buffers import PrioritizedReplayBuffer, ReplayBuffer
-from model.nn_rainbow import Network
+from buffers.PrioritizedReplayBuffer import PrioritizedReplayBuffer
+from buffers.ReplayBuffer import ReplayBuffer
 from utils.processing import preprocess_observation
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Type
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,14 +11,18 @@ from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
 import numpy as np
 
-
 class DQNAgent:
     """DQN Agent interacting with environment.
 
     Attribute:
+        Network (objet): réseau de neurones utilisés pour l'exécution
         env (gym.Env): openAI Gym environment
         memory (PrioritizedReplayBuffer): replay memory to store transitions
         batch_size (int): batch size for sampling
+        epsilon (float): parameter for epsilon greedy policy
+        epsilon_decay (float): step size to decrease epsilon
+        max_epsilon (float): max value of epsilon
+        min_epsilon (float): min value of epsilon
         target_update (int): period for target model's hard update
         gamma (float): discount factor
         dqn (Network): model to train and select actions
@@ -37,11 +41,16 @@ class DQNAgent:
 
     def __init__(
         self,
+        Network : Type[object],
         env: gym.Env,
         memory_size: int,
         batch_size: int,
         target_update: int,
+        epsilon_decay: float,
         seed: int,
+        num_video: int = 0,
+        max_epsilon: float = 1.0,
+        min_epsilon: float = 0.1,
         gamma: float = 0.99,
         # PER parameters
         alpha: float = 0.2,
@@ -79,13 +88,17 @@ class DQNAgent:
         self.target_update = target_update
         self.seed = seed
         self.gamma = gamma
-        # NoisyNet: All attributes related to epsilon are removed
+
+        self.epsilon = max_epsilon
+        self.epsilon_decay = epsilon_decay
+        self.max_epsilon = max_epsilon
+        self.min_epsilon = min_epsilon
 
         # device: cpu / gpu
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
-        print(self.device)
+        print("cpu ou gpu ?", self.device)
 
         # PER
         # memory for 1-step Learning
@@ -129,17 +142,20 @@ class DQNAgent:
 
         # mode: train / test
         self.is_test = False
-        self.num_video = 0
+        self.num_video = num_video
 
     def select_action(self, state: np.ndarray) -> np.ndarray:
         """Select an action from the input state."""
-        # NoisyNet: no epsilon greedy action selection
-        if state.shape != (7056,):
-          state = preprocess_observation(state)
-        selected_action = self.dqn(
-            torch.FloatTensor(state).to(self.device)
-        ).argmax()
-        selected_action = selected_action.detach().cpu().numpy()
+        # epsilon greedy policy
+        if self.epsilon > np.random.random():
+            selected_action = self.env.action_space.sample()
+        else:
+          if state.shape != (7056,):
+            state = preprocess_observation(state)
+          selected_action = self.dqn(
+                torch.FloatTensor(state).to(self.device)
+            ).argmax()
+          selected_action = selected_action.detach().cpu().numpy()
 
         if not self.is_test:
             self.transition = [state, selected_action]
@@ -158,20 +174,24 @@ class DQNAgent:
           reward -= 0.01
 
         if not self.is_test:
-            self.transition += [reward, next_state, done]
+          if self.transition[0].shape != (7056,):
+            self.transition[0] = preprocess_observation(self.transition[0])
+          self.transition = [self.transition[0], self.transition[1], reward, next_state, done]
+          self.memory.store(*self.transition)
 
-            # N-step transition
-            if self.use_n_step:
-                one_step_transition = self.memory_n.store(*self.transition)
+          # N-step transition
+          if self.use_n_step:
+            one_step_transition = self.memory_n.store(*self.transition)
             # 1-step transition
-            else:
-                one_step_transition = self.transition
+          else:
+              one_step_transition = self.transition
 
             # add a single step transition
-            if one_step_transition:
-                self.memory.store(*one_step_transition)
+          if one_step_transition:
+              self.memory.store(*one_step_transition)
 
         return next_state, reward, done
+
 
     def update_model(self) -> torch.Tensor:
         """Update the model by gradient descent."""
@@ -210,18 +230,15 @@ class DQNAgent:
         new_priorities = loss_for_prior + self.prior_eps
         self.memory.update_priorities(indices, new_priorities)
 
-        # NoisyNet: reset noise
-        self.dqn.reset_noise()
-        self.dqn_target.reset_noise()
-
         return loss.item()
 
     def train(self, num_frames: int, plotting_interval: int = 200):
         """Train the agent."""
         self.is_test = False
-
+        
         state, _ = self.env.reset(seed=self.seed)
         update_cnt = 0
+        epsilons = []
         losses = []
         scores = []
         score = 0
@@ -232,8 +249,6 @@ class DQNAgent:
 
             state = next_state
             score += reward
-
-            # NoisyNet: removed decrease of epsilon
 
             # PER: increase beta
             fraction = min(frame_idx / num_frames, 1.0)
@@ -251,19 +266,27 @@ class DQNAgent:
                 losses.append(loss)
                 update_cnt += 1
 
+                # linearly decrease epsilon
+                self.epsilon = max(
+                    self.min_epsilon, self.epsilon - (
+                        self.max_epsilon - self.min_epsilon
+                    ) * self.epsilon_decay
+                )
+                epsilons.append(self.epsilon)
+
+
                 # if hard update is needed
                 if update_cnt % self.target_update == 0:
                     self._target_hard_update()
 
             # plotting
             if frame_idx % plotting_interval == 0:
-                
                 # Afin d' afficher un score même si on n'a pas encore atteint l'objectif (ici le bout de la route)
                 if len(scores) == 0:
-                    self._plot(frame_idx, [score], losses)
+                    self._plot(frame_idx, [score], losses, epsilons)
                 else :
-                    self._plot(frame_idx, scores, losses)
-                
+                    self._plot(frame_idx, scores, losses, epsilons)
+
         self.env.close()
 
     def test(self, video_folder: str) -> None:
@@ -350,6 +373,7 @@ class DQNAgent:
         frame_idx: int,
         scores: List[float],
         losses: List[float],
+        epsilons: List[float],
     ):
         """Plot the training progresses."""
         clear_output(True)
@@ -364,6 +388,9 @@ class DQNAgent:
         plt.subplot(132)
         plt.title('loss')
         plt.plot(losses)
-        plt.figtext(0.45, -0.1, "Évolution des scores*, pertes et epsilons au fil de l'entraînement \n \n * : Un score est calculé du point de départ à l'atteinte de l'objectif par la fonction reward, elle est donc différente du score du jeu.", 
-            ha="center", fontsize=12)
+        plt.subplot(133)
+        plt.title('epsilons')
+        plt.plot(epsilons)
+        plt.figtext(0.45, -0.1, "Évolution des scores*, pertes et epsilons au fil de l'entraînement \n \n * : Un score est calculé du point de départ à l'atteinte de l'objectif par la fonction reward, il est donc différent du score du jeu.", 
+            ha="left", fontsize=12)
         plt.show()
