@@ -11,7 +11,7 @@ import torch.optim as optim
 from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
 import numpy as np
-
+import gc
 
 ## Categorical DQN + Double DQN
 
@@ -275,14 +275,15 @@ class DQNAgent:
                 
         self.env.close()
 
-    def test(self, video_folder: str) -> float:
+    def test(self, video_folder: str = "") -> float:
         """Test the agent."""
         self.is_test = True
 
         # for recording a video
         naive_env = self.env
         video_folder = f"{video_folder}{self.num_video}"
-        self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
+        if video_folder != "":
+            self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
 
         state, _ = self.env.reset(seed=self.seed)
         done = False
@@ -378,3 +379,23 @@ class DQNAgent:
         plt.figtext(0.45, -0.1, "Évolution des scores*, pertes et epsilons au fil de l'entraînement \n \n * : Un score est calculé du point de départ à l'atteinte de l'objectif par la fonction reward, il est donc différent du score du jeu.", 
             ha="center", fontsize=12)
         plt.show()
+
+    def cleanup(self):
+        """Libère explicitement la mémoire occupée par l'agent."""
+
+        # Libérer les tensors PyTorch
+        del self.dqn
+        del self.dqn_target
+        del self.optimizer
+
+        # Libérer la mémoire des buffers de replay
+        del self.memory
+        if self.use_n_step:
+            del self.memory_n
+
+        # Nettoyage GPU si applicable
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # Forcer la collecte des objets non référencés
+        gc.collect()
