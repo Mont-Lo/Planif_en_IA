@@ -289,8 +289,8 @@ class DQNAgent:
 
         self.env.close()
 
-    def test(self, video_folder: str) -> None:
-        """Test the agent."""
+    def test(self, video_folder: str) -> float:
+        """Test the agent and return test score."""
         self.is_test = True
 
         # for recording a video
@@ -316,6 +316,8 @@ class DQNAgent:
         self.env = naive_env
 
         self.num_video += 1
+
+        return score
 
     def _compute_dqn_loss(self, samples: Dict[str, np.ndarray], gamma: float) -> torch.Tensor:
         """Return categorical dqn loss."""
