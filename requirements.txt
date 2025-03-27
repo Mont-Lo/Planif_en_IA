@@ -7,3 +7,4 @@ jupyterlab                      == 3.6.7
 moviepy                         == 1.0.3
 opencv-python                   == 4.11.0.86
 ale_py                          == 0.10.2
+
