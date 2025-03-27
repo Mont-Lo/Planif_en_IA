@@ -17,7 +17,7 @@ def eval_agent(agent, env, fname, device, load=False):
              avg_reward: The list of average reward over episodes on each episode
     """
 
-    if load == True:
+    if load:
         # Load the agent
         agent.load("model", fname)  # model is the file path
 
@@ -32,66 +32,38 @@ def eval_agent(agent, env, fname, device, load=False):
 
         ep_reward = 0
         done = False
-        i = 0
+        step = 0
+
         while not done:
 
             with torch.no_grad():
                 state_a = state_a.squeeze(1).permute(0, 3, 1, 2)
                 action = agent.actor_net.forward(state_a.float())
 
-
             action = action.detach().cpu().numpy()
-            next_state, reward, done, truncated, info = env.step(np.argmax(action))
+            action = np.argmax(action)  # Convertir en action discrète (0, 1 ou 2)
 
+            next_state, reward, done, truncated, info = env.step(action)
 
+            ####################### MODIFICATION DE LA RECOMPENSE ########################
+            if action == 1:  # Avancer
+                reward += 0.5
+            elif action == 0:  # Ne rien faire
+                reward -= 0.01
+            elif action == 2:  # Reculer
+                reward -= 0.02
+            ##############################################################################
 
             state_a = torch.tensor(next_state).unsqueeze(0).unsqueeze(0).to(device)
-            veh_mat = state_a.squeeze().squeeze()
-            num_veh = veh_mat.shape[0]
 
-
-            ######## The Modified Reward function ###############
-            '''
-            front_v = False
-
-            if reward == 0:
-                reward = -3
-                done = True
-            elif veh_mat[0][3].item() < 0.15:
-                done = True
-                reward -= 0.7
-
-            for veh in range(1, num_veh):
-                if abs(veh_mat[veh][2].item()) < 0.17:
-                    if 0.09 < veh_mat[veh][1].item() < 0.15:
-                        reward += 0.2
-                        if veh_mat[veh][3].item() < 0.07:
-                            reward += 0.1
-                    elif veh_mat[veh][1].item() < 0.075:
-                        reward -= 0.3
-
-                    if abs(veh_mat[veh][1].item()) < 0.20:
-                        front_v = True
-
-            if front_v == False and 0.28 < veh_mat[0][3].item() < 0.31:
-                reward += 0.4
-
-            if abs(veh_mat[0][4].item()) < 0.05 and 0.24 < veh_mat[0][3].item() < 0.31:
-                reward += 0.4
-            elif veh_mat[0][3].item() < 0.2:
-                reward -= 0.4
-
-            if veh_mat[0][4].item() > 0.2:
-                reward -= 0.4
-                done = True
-
+            step += 10
             ep_reward += reward
-            '''
-            i += 1
-            if i == 10:
+
+            if step >= 1500:
                 done = True
 
             env.render()
+
         test_reward.append(ep_reward)
         avg_reward.append(np.mean(test_reward))
 

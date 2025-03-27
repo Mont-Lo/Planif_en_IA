@@ -130,7 +130,7 @@ class DDPG_agent():
         """
         Training the agent
         """
-        episodes = 2
+        episodes = 10
 
         time_start = time()
 
@@ -145,80 +145,32 @@ class DDPG_agent():
             state_a = torch.tensor(state[0])
 
             step = 0
+
             while not done:
 
                 noise = self.noise_o.sample()       # Sample OU noise
                 action = self.get_action(state_a)[0] # Get action from the Actor network
-
                 # Add noise to action to encourage exploration
-                #print("Action shape:", action.shape)
-                #print("Noise shape:", noise.shape)
-
                 action = np.clip(action.cpu() + noise, -1.0, 1.0)
                 action = action.detach().cpu().numpy()
 
-
                 # Move to the next time step with the action
-                action = int(action.argmax())  # Prend l'action avec la plus haute valeur     
+                action = int(action.argmax())  # Prend l'action avec la plus haute valeur  
                 next_state, reward, done, truncated, info = self.env.step(action)
                 next_state_a = torch.tensor(next_state)
 
+                ####################### MODIFICATION DE LA RECOMPENSE ########################
+                if action == 1:
+                    reward += 0.5
+                elif action == 0:
+                    reward -= 0.03
+                elif action == 2:
+                    reward -= 0.03
+                ##############################################################################
 
-                ######################### The Modified Rewards ##############################
-
-                # get the number of vehicles
-                num_veh = state_a.shape[0]
-                front_v = False
-
-                # A changer (le code d'origine porte sur une voiture qui en évite d'autres)
-                # Donc pas notre truc
-
-                # Remplacer par des "si la voiture sur la ligne est à x pixels du poulet, malus/bonus" ?
-                """ # Set done condition and giving a penalty if the ego vehicle moves outside the road boundary
-                if reward == 0:
-                    reward = -3
-                    done = True
-                # Set done condition and giving a penalty if the ego vehicle is moving very slowly in the x-axis
-                elif next_state_a[0][3].item() < 0.15:
-                    done = True
-                    reward -= 0.7
-
-                else:
-                    for veh in range(1, num_veh):
-                        if abs(next_state_a[veh][2].item()) < 0.17:  # Check if there is any vehicle in the same lane
-                            if 0.09 < next_state_a[veh][1].item() < 0.15:  # Reward for maintaining appropriate distance from the front vehicle
-                                reward += 0.2
-                                if next_state_a[veh][3].item() < 0.07:  # Reward for maintaining relative speed to the front vehicle
-                                    reward += 0.1
-
-                            elif next_state_a[veh][1].item() < 0.075:  # Penalize if the ego vehicle is getting too close to the front vehicle
-                                reward -= 0.3
-
-                            if abs(next_state_a[veh][1].item()) < 0.20:  # Check if the front vehicle is in a safe distance
-                                front_v = True
-
-                # Reward for moving faster if there is no vehicle within the safe distance
-                if front_v == False and 0.28 < next_state_a[0][3].item() < 0.31:
-                    reward += 0.4
-
-                # Reward for moving with appropriate x-axis speed and not making a sharp y-axis movement
-                if abs(next_state_a[0][4].item()) < 0.05 and 0.24 < next_state_a[0][3].item() < 0.31:
-                    reward += 0.4
-
-                # Penalize for moving too slow but still above the threshold
-                elif next_state_a[0][3].item() < 0.2:
-                    reward -= 0.4
-
-                # Penalize for making a very quick movement in the y-axis
-                if next_state_a[0][4].item() > 0.2:
-                    reward -= 0.4
-                    done = True """
                 # Checking if the training reaches the maximum steps on the episode
-                if step == 10:
+                if step == 1500:
                     done = True
-
-                #######################################################
-
 
                 # Push the experience in the batch
                 self.replay_buffer.push(state_a, action, reward, next_state_a, done)
@@ -230,7 +182,6 @@ class DDPG_agent():
                 step += 1
                 state_a = next_state_a
                 ep_reward += reward
-                # env.render()
 
             print("Episode reward: ", ep_reward)
             self.total_rewards.append(ep_reward)
