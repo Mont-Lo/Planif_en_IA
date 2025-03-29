@@ -11,6 +11,7 @@ from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
 import numpy as np
 import torch.nn.functional as F
+import gc
 
 class DQNAgent:
     """DQN Agent interacting with environment.
@@ -271,8 +272,8 @@ class DQNAgent:
                 
         self.env.close()
 
-    def test(self, video_folder: str) -> None:
-        """Test the agent."""
+    def test(self, video_folder: str) -> float:
+        """Test the agent and return test score."""
         self.is_test = True
 
         # for recording a video
@@ -298,6 +299,8 @@ class DQNAgent:
         self.env = naive_env
 
         self.num_video += 1
+
+        return score
 
     def _compute_dqn_loss(self, samples: Dict[str, np.ndarray], gamma: float) -> torch.Tensor:
         """Return dqn loss."""
@@ -356,3 +359,23 @@ class DQNAgent:
         plt.figtext(0.45, -0.1, "Évolution des scores*, pertes et epsilons au fil de l'entraînement \n \n * : Un score est calculé du point de départ à l'atteinte de l'objectif par la fonction reward, il est donc différent du score du jeu.", 
             ha="left", fontsize=12)
         plt.show()
+    
+    def cleanup(self):
+        """Libère explicitement la mémoire occupée par l'agent."""
+
+        # Libérer les tensors PyTorch
+        del self.dqn
+        del self.dqn_target
+        del self.optimizer
+
+        # Libérer la mémoire des buffers de replay
+        del self.memory
+        if self.use_n_step:
+            del self.memory_n
+
+        # Nettoyage GPU si applicable
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # Forcer la collecte des objets non référencés
+        gc.collect()
