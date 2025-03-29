@@ -46,6 +46,7 @@ class DQNAgent:
         target_update: int,
         epsilon_decay: float,
         seed: int,
+        buffer_path: str,
         num_video: int = 0,
         max_epsilon: float = 1.0,
         min_epsilon: float = 0.1,
@@ -96,7 +97,7 @@ class DQNAgent:
         self.beta = beta
         self.prior_eps = prior_eps
         self.memory = PrioritizedReplayBuffer(
-            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma
+            obs_dim, memory_size, f'{buffer_path}_per', batch_size, alpha=alpha, gamma=gamma
         )
 
         # memory for N-step Learning
@@ -104,7 +105,7 @@ class DQNAgent:
         if self.use_n_step:
             self.n_step = n_step
             self.memory_n = ReplayBuffer(
-                obs_dim, memory_size, batch_size, n_step=n_step, gamma=gamma
+                obs_dim, memory_size, buffer_path, batch_size, n_step=n_step, gamma=gamma
             )
 
         # networks: dqn, dqn_target
