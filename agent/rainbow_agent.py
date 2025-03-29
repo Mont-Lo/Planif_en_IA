@@ -279,7 +279,7 @@ class DQNAgent:
             if saving_path and frame_idx % saving_interval == 0:
                 with open(saving_path, 'wb') as f:
                     pickle.dump(self, f)
-                
+
         self.env.close()
 
     @staticmethod
@@ -287,15 +287,14 @@ class DQNAgent:
         with open(filename, 'rb') as f:
             return pickle.load(f)
 
-    def test(self, video_folder: str = "") -> float:
-        """Test the agent."""
+    def test(self, video_folder: str) -> float:
+        """Test the agent and return test score."""
         self.is_test = True
 
         # for recording a video
         naive_env = self.env
         video_folder = f"{video_folder}{self.num_video}"
-        if video_folder != "":
-            self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
+        self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
 
         state, _ = self.env.reset(seed=self.seed)
         done = False
