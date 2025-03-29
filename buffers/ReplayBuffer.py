@@ -1,3 +1,6 @@
+import os
+from os import PathLike
+
 import numpy as np
 from collections import deque
 from typing import Deque, Dict, Tuple
@@ -14,15 +17,26 @@ class ReplayBuffer:
         self,
         obs_dim: int,
         size: int,
+        path: str,
         batch_size: int = 32,
         n_step: int = 1,
-        gamma: float = 0.99
+        gamma: float = 0.99,
     ):
-        self.obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
-        self.next_obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
-        self.acts_buf = np.zeros([size], dtype=np.float32)
-        self.rews_buf = np.zeros([size], dtype=np.float32)
-        self.done_buf = np.zeros(size, dtype=np.float32)
+        obs_buf_path = f'{path}_obs_buf.dat'
+        next_obs_buf_path = f'{path}_next_obs_buf.dat'
+
+        os.makedirs(os.path.dirname(obs_buf_path), exist_ok=True)
+        os.makedirs(os.path.dirname(next_obs_buf_path), exist_ok=True)
+
+        # Vérifier si le fichier existe déjà
+        mode = 'r+' if os.path.exists(obs_buf_path) else 'w+'
+        self.obs_buf = np.memmap(obs_buf_path, dtype=np.float16,
+                                 mode=mode, shape=(size, obs_dim))
+        self.next_obs_buf = np.memmap(next_obs_buf_path, dtype=np.float16,
+                                      mode=mode, shape=(size, obs_dim))
+        self.acts_buf = np.zeros([size], dtype=np.float16)
+        self.rews_buf = np.zeros([size], dtype=np.float16)
+        self.done_buf = np.zeros(size, dtype=np.float16)
         self.max_size, self.batch_size = size, batch_size
         self.ptr, self.size, = 0, 0
 
@@ -38,7 +52,7 @@ class ReplayBuffer:
         rew: float,
         next_obs: np.ndarray,
         done: bool,
-    ) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray, bool]:
+    ) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray, bool] | Tuple:
         transition = (obs, act, rew, next_obs, done)
         self.n_step_buffer.append(transition)
 
