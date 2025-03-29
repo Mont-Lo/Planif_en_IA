@@ -1,3 +1,5 @@
+import pickle
+
 from buffers.PrioritizedReplayBuffer import PrioritizedReplayBuffer
 from buffers.ReplayBuffer import ReplayBuffer
 from utils.processing import preprocess_observation
@@ -234,7 +236,7 @@ class DQNAgent:
 
         return loss.item()
 
-    def train(self, num_frames: int, plotting_interval: int = 200):
+    def train(self, num_frames: int, plotting_interval: int = 200, saving_interval: int = 1000, saving_path: str = None):
         """Train the agent."""
         self.is_test = False
         
@@ -289,7 +291,16 @@ class DQNAgent:
                 else :
                     self._plot(frame_idx, scores, losses, epsilons)
 
+            if saving_path and frame_idx % saving_interval == 0:
+                with open(saving_path, 'wb') as f:
+                    pickle.dump(self, f)
+
         self.env.close()
+
+    @staticmethod
+    def load(filename: str):
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
 
     def test(self, video_folder: str) -> float:
         """Test the agent and return test score."""
