@@ -275,15 +275,14 @@ class DQNAgent:
                 
         self.env.close()
 
-    def test(self, video_folder: str = "") -> float:
-        """Test the agent."""
+    def test(self, video_folder: str) -> float:
+        """Test the agent and return test score."""
         self.is_test = True
 
         # for recording a video
         naive_env = self.env
         video_folder = f"{video_folder}{self.num_video}"
-        if video_folder != "":
-            self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
+        self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
 
         state, _ = self.env.reset(seed=self.seed)
         done = False
