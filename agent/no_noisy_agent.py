@@ -44,6 +44,7 @@ class DQNAgent:
 
     def __init__(
         self,
+        mask,
         Network : Type[object],
         env: gym.Env,
         memory_size: int,
@@ -66,6 +67,8 @@ class DQNAgent:
         atom_size: int = 51,
         # N-step Learning
         n_step: int = 3,
+        coord: int = 0, # 187 si on ne fait pas la soustraction
+        is_crash: bool = False
     ):
         """Initialization.
 
@@ -148,6 +151,10 @@ class DQNAgent:
         self.is_test = False
         self.num_video = num_video
 
+        self.coord = coord
+        self.is_crash = is_crash
+        self.mask = mask
+
     def select_action(self, state: np.ndarray) -> np.ndarray:
         """Select an action from the input state."""
         # epsilon greedy policy
@@ -166,9 +173,112 @@ class DQNAgent:
 
         return selected_action
 
+    def find_coord(self, obs) :
+        obsShape = obs.shape
+        mask = obs.copy()
+        min_coord_box = 200
+        for i in range (obsShape[0]) :
+            for j in range (obsShape[1]) :
+                a, b, c = obs[i, j, 0], obs[i, j, 1], obs[i, j, 2]
+
+                if a == b == c or ((a, b, c) == (228, 111, 111) and (i < 25 or i > 195)):
+                    mask[i, j] = 0
+                elif (a, b, c) == (252, 252, 84) :
+                    if (j < 44 or j > 50) :
+                        mask[i, j] = 0
+                    else :
+                        if [i, j] in [[102, 44], [102, 45], [102, 46], [102, 47], [104, 44], [104, 45], [104, 46], [104, 47]] :
+                            mask[i, j] = 0
+                        else :
+                            mask[i, j] = 255
+                            if i < min_coord_box :
+                                min_coord_box = i
+                                if j == 48 :
+                                    num_sprite = 1
+                                elif j == 49 :
+                                    num_sprite = 2
+                                else :
+                                    num_sprite = 3
+                else :
+                    mask[i, j] = (a + b + c) / 3 + 50
+        self.mask = mask
+        self.is_crash = False
+        if num_sprite == 1 :
+            if not (obs[min_coord_box + 1, 49, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 1, 48, 0] == 252 and \
+                    obs[min_coord_box + 2, 48, 0] == 252 and \
+                    obs[min_coord_box + 3, 48, 0] == 252 and \
+                    obs[min_coord_box + 4, 48, 0] == 252 and \
+                    obs[min_coord_box + 5, 48, 0] == 252 and \
+                    obs[min_coord_box + 7, 48, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 2, 47, 0] == 252 and \
+                    obs[min_coord_box + 3, 47, 0] == 252 and \
+                    obs[min_coord_box + 4, 47, 0] == 252 and \
+                    obs[min_coord_box + 5, 47, 0] == 252 and \
+                    obs[min_coord_box + 6, 47, 0] == 252 and \
+                    obs[min_coord_box + 7, 47, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 3, 46, 0] == 252 and \
+                    obs[min_coord_box + 4, 46, 0] == 252 and \
+                    obs[min_coord_box + 5, 46, 0] == 252 and \
+                    obs[min_coord_box + 6, 46, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 4, 45, 0] == 252 and \
+                    obs[min_coord_box + 5, 45, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 3, 44, 0] == 252 and \
+                    obs[min_coord_box + 4, 44, 0] == 252) :
+                self.is_crash = True
+        elif num_sprite == 2 :
+            if not (obs[min_coord_box, 49, 0] == 252 and \
+                    obs[min_coord_box + 1, 49, 0] == 252 and \
+                    obs[min_coord_box + 2, 49, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 2, 48, 0] == 252 and \
+                    obs[min_coord_box + 3, 48, 0] == 252 and \
+                    obs[min_coord_box + 4, 48, 0] == 252 and \
+                    obs[min_coord_box + 5, 48, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 3, 47, 0] == 252 and \
+                    obs[min_coord_box + 4, 47, 0] == 252 and \
+                    obs[min_coord_box + 5, 47, 0] == 252 and \
+                    obs[min_coord_box + 7, 47, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 3, 46, 0] == 252 and \
+                    obs[min_coord_box + 4, 46, 0] == 252 and \
+                    obs[min_coord_box + 5, 46, 0] == 252 and \
+                    obs[min_coord_box + 6, 46, 0] == 252 and \
+                    obs[min_coord_box + 7, 46, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 4, 45, 0] == 252 and \
+                    obs[min_coord_box + 5, 45, 0] == 252 and \
+                    obs[min_coord_box + 6, 45, 0] == 252 and \
+                    \
+                    obs[min_coord_box + 3, 44, 0] == 252 and \
+                    obs[min_coord_box + 4, 44, 0] == 252) :
+                        self.is_crash = True
+        else :
+            self.is_crash = True
+        self.coord = 187 - min_coord_box
+
+    def instant_reward (self, game_reward, coord_variation) :
+        score = 0
+        if self.is_crash :
+            score = -100
+        elif coord_variation < -100 :
+            score = 100 * game_reward
+        else :
+            score = game_reward + coord_variation * 2
+        self.lst_score.append([score, self.is_crash, game_reward, coord_variation])
+        return score
+
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool]:
         """Take an action and return the response of the env."""
-        next_state, reward, terminated, truncated, _ = self.env.step(action)
+        next_state, game_reward, terminated, truncated, _ = self.env.step(action)
+        previous_coord = self.coord
+        reward = self.instant_reward (game_reward, self.coord - previous_coord)
         next_state = preprocess_observation(next_state)  # Preprocess image
         done = terminated or truncated
 
