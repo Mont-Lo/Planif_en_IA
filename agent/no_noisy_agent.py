@@ -278,8 +278,9 @@ class DQNAgent:
         """Take an action and return the response of the env."""
         next_state, game_reward, terminated, truncated, _ = self.env.step(action)
         previous_coord = self.coord
+        self.find_coord(next_state)
         reward = self.instant_reward (game_reward, self.coord - previous_coord)
-        next_state = preprocess_observation(next_state)  # Preprocess image
+        next_state = preprocess_observation(self.mask)  # Preprocess image
         done = terminated or truncated
 
         if action == 1:
