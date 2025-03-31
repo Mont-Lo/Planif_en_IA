@@ -262,8 +262,7 @@ class DQNAgent:
         elif coord_variation < -100 :
             score = 100 * game_reward
         else :
-            score = game_reward + coord_variation * 2
-        self.lst_score.append([score, self.is_crash, game_reward, coord_variation])
+            score = coord_variation * 2
         return score
     
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool]:
@@ -275,11 +274,6 @@ class DQNAgent:
         next_state = preprocess_observation(self.mask)  # Preprocess image
         done = terminated or truncated
         
-        if action == 1:
-          reward += 0.5
-        elif action == 0:
-          reward -= 0.01
-
         if not self.is_test:
             self.transition += [reward, next_state, done]
 
