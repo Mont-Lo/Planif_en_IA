@@ -49,6 +49,7 @@ class DQNAgent:
         target_update: int,
         epsilon_decay: float,
         seed: int,
+        seed_test: int,
         buffer_path: str,
         num_video: int = 0,
         max_epsilon: float = 1.0,
@@ -86,6 +87,7 @@ class DQNAgent:
         self.batch_size = batch_size
         self.target_update = target_update
         self.seed = seed
+        self.seed_test = seed_test
         self.gamma = gamma
 
         self.epsilon = max_epsilon
@@ -362,6 +364,7 @@ class DQNAgent:
         """Train the agent."""
         self.is_test = False
 
+        self.seed = np.random.randint(0, 1000)
         state, _ = self.env.reset(seed=self.seed)
         update_cnt = 0
         epsilons = []
@@ -383,6 +386,7 @@ class DQNAgent:
 
             # if episode ends
             if done:
+                self.seed = np.random.randint(0, 1000)
                 state, _ = self.env.reset(seed=self.seed)
                 scores.append(score)
                 score = 0
@@ -439,7 +443,7 @@ class DQNAgent:
         video_folder = f"{video_folder}{self.num_video}"
         self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
 
-        state, _ = self.env.reset(seed=self.seed)
+        state, _ = self.env.reset(seed=self.seed_test)
         done = False
         score = 0
 
