@@ -61,7 +61,9 @@ class DQNAgent:
         # N-step Learning
         n_step: int = 3,
         coord: int = 0, # 187 si on ne fait pas la soustraction
-        is_crash: bool = False
+        is_crash: bool = False,
+        lst_recent_crashes: List = [False, False],
+        nb_crashes: int = 0
     ):
         """Initialization.
 
@@ -135,7 +137,11 @@ class DQNAgent:
 
         self.coord = coord
         self.is_crash = is_crash
+        self.lst_recent_crashes = lst_recent_crashes
+        self.nb_crashes = nb_crashes
         self.mask = mask
+
+        
 
     def select_action(self, state: np.ndarray) -> np.ndarray:
         """Select an action from the input state."""
@@ -243,16 +249,46 @@ class DQNAgent:
                         self.is_crash = True
         else :
             self.is_crash = True
+        self.update_nb_crash()
+
         self.coord = 187 - min_coord_box
 
-    def instant_reward (self, game_reward, coord_variation) :
+    def update_nb_crash(self) :
+        if self.is_crash and not self.lst_recent_crashes[0] and not self.lst_recent_crashes[1]:
+            self.nb_crashes += 1
+        self.lst_recent_crashes[0], self.lst_recent_crashes[1] = self.lst_recent_crashes[1], self.is_crash
+    
+    def instant_reward1 (self, game_reward, coord_variation) :
         score = 0
         if self.is_crash :
             score = -100
         elif coord_variation < -100 :
             score = 100 * game_reward
         else :
-            score = coord_variation * 2
+            score = 2 * coord_variation
+        return score
+
+    def instant_reward2 (self, game_reward, coord_variation) :
+        score = 0
+        if self.is_crash :
+            score = -100
+        elif coord_variation < -100 :
+            score = 100
+        else :
+            if coord_variation > 0 :
+                score = 5
+            elif coord_variation == 0 :
+                score = 1
+            else :
+                score = -10
+        return score
+
+    def instant_reward3 (self, game_reward, coord_variation) :
+        score = 0
+        if coord_variation > 0 :
+            score = 0.5
+        elif coord_variation == 0 :
+            score = -0.01
         return score
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool]:
@@ -260,7 +296,7 @@ class DQNAgent:
         next_state, game_reward, terminated, truncated, _ = self.env.step(action)
         previous_coord = self.coord
         self.find_coord(next_state)
-        reward = self.instant_reward (game_reward, self.coord - previous_coord)
+        reward = self.instant_reward1 (game_reward, self.coord - previous_coord)
         next_state = preprocess_observation(self.mask)  # Preprocess image
         done = terminated or truncated
 
@@ -331,6 +367,7 @@ class DQNAgent:
         epsilons = []
         losses = []
         scores = []
+        crashes = []
         score = 0
 
         for frame_idx in range(1, num_frames + 1):
@@ -349,6 +386,10 @@ class DQNAgent:
                 state, _ = self.env.reset(seed=self.seed)
                 scores.append(score)
                 score = 0
+                crashes.append(self.nb_crashes)
+                self.lst_recent_crashes = [False, False]
+                self.nb_crashes = 0
+
 
             # if training is ready
             if len(self.memory) >= self.batch_size:
@@ -377,6 +418,7 @@ class DQNAgent:
                 else :
                     self._plot(frame_idx, scores, losses, epsilons)
 
+
             if saving_path and frame_idx % saving_interval == 0:
                 with open(saving_path, 'wb') as f:
                     pickle.dump(self, f)
@@ -388,7 +430,7 @@ class DQNAgent:
         with open(filename, 'rb') as f:
             return pickle.load(f)
 
-    def test(self, video_folder: str) -> float:
+    def test(self, video_folder: str) -> Tuple[float, int]:
         """Test the agent and return test score."""
         self.is_test = True
 
@@ -408,7 +450,12 @@ class DQNAgent:
             state = next_state
             score += reward
 
+        nb_crashes = self.nb_crashes
+        self.lst_recent_crashes = [False, False]
+        self.nb_crashes = 0
+        
         print("score: ", score)
+        print("nb_crashes: ", nb_crashes)
         self.env.close()
 
         # reset
@@ -416,7 +463,7 @@ class DQNAgent:
 
         self.num_video += 1
 
-        return score
+        return score, nb_crashes
 
     def _compute_dqn_loss(self, samples: Dict[str, np.ndarray], gamma: float) -> torch.Tensor:
         """Return dqn loss."""
