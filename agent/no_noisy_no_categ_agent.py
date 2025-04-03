@@ -298,7 +298,7 @@ class DQNAgent:
         next_state, game_reward, terminated, truncated, _ = self.env.step(action)
         previous_coord = self.coord
         self.find_coord(next_state)
-        reward = self.instant_reward1 (game_reward, self.coord - previous_coord)
+        reward = self.instant_reward3 (game_reward, self.coord - previous_coord)
         next_state = preprocess_observation(self.mask)  # Preprocess image
         done = terminated or truncated
 
@@ -393,7 +393,6 @@ class DQNAgent:
                 crashes.append(self.nb_crashes)
                 self.lst_recent_crashes = [False, False]
                 self.nb_crashes = 0
-
 
             # if training is ready
             if len(self.memory) >= self.batch_size:
