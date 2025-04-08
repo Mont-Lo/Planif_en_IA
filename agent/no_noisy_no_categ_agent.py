@@ -15,7 +15,7 @@ import numpy as np
 import torch.nn.functional as F
 import gc
 
-class DQNAgent:
+class NoNoisyNoCategAgent:
     """DQN Agent interacting with environment.
 
     Attribute:

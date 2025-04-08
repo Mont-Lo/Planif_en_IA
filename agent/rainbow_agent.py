@@ -22,7 +22,7 @@ import gc
 # Here, we use `self.dqn` instead of `self.dqn_target` to obtain the target actions.
 
 
-class DQNAgent:
+class RainbowAgent:
     """DQN Agent interacting with environment.
 
     Attribute:

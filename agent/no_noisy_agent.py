@@ -14,7 +14,7 @@ from torch.nn.utils import clip_grad_norm_
 import numpy as np
 import gc
 
-class DQNAgent:
+class NoNoisyAgent:
     """DQN Agent interacting with environment.
 
     Attribute:
