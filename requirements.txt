@@ -8,3 +8,4 @@ moviepy
 opencv-python                   
 ale_py                        
 scikit-image
+pickledb

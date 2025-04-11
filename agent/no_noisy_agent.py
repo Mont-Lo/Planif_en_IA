@@ -554,3 +554,5 @@ class NoNoisyAgent:
         plt.figtext(0.45, -0.1, "Évolution des scores*, pertes et epsilons au fil de l'entraînement \n \n * : Un score est calculé du point de départ à l'atteinte de l'objectif par la fonction reward, il est donc différent du score du jeu.", 
             ha="left", fontsize=12)
         plt.show()
+
+
