@@ -3,28 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# NoisyNet + DuelingNet + Categorical DQN
-
-## NoisyNet + DuelingNet
-
-# NoisyLinear is employed for the last two layers of advantage and
-# value layers. The noise should be reset at evey update step.
-
-## DuelingNet + Categorical DQN
-
-# The dueling network architecture is adapted for use with return
-# distributions. The network has a shared representation, which is
-# then fed into a value stream with atom_size outputs, and into an 
-# advantage stream with atom_size × out_dim outputs. For each atom, 
-# the value and advantage streams are aggregated, as in dueling DQN,
-# and then passed through a softmax layer to obtain the normalized
-# parametric distributions used to estimate the returns’ distributions.
-
-
-# (Please see *04.dueling.ipynb*, *05.noisy_net.ipynb*, 
-# *06.categorical_dqn.ipynb* from rainbow-is-all-you-need
-# for detailed description of each component's network architecture.)
-
 
 class Network(nn.Module):
     def __init__(
