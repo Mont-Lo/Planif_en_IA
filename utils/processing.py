@@ -34,6 +34,8 @@ def ipython_show_video(path: str) -> None:
 def show_latest_video(video_folder: str) -> str:
     """Show the most recently recorded video from any subfolder in `videos_folder`."""
     # Chercher toutes les vidéos dans les sous-dossiers (ex: videos_folder/0/*.mp4)
+    # On créer des sous dossier afin de ne pas écraser des vidéos puisque nous n'avons pas réussi
+    # à modifier le nom de la vidéo
     list_of_files = glob.glob(os.path.join(video_folder, "*", "*.mp4"))
 
     if not list_of_files:
