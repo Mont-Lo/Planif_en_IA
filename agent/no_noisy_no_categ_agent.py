@@ -3,6 +3,7 @@ import pickle
 from buffers.PrioritizedReplayBuffer import PrioritizedReplayBuffer
 from buffers.ReplayBuffer import ReplayBuffer
 from utils.processing import preprocess_observation
+from utils.reward_function import instant_reward1, instant_reward2, instant_reward3
 from typing import Dict, List, Tuple, Type
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -16,32 +17,40 @@ import torch.nn.functional as F
 import gc
 
 class NoNoisyNoCategAgent:
-    """DQN Agent interacting with environment.
+    """
+    Agent DQN (sans bruit et sans la composante categorical) interagissant avec un environnement Gym pour le jeu Freeway
 
-    Attribute:
-        Network (objet): réseau de neurones utilisés pour l'exécution
-        env (gym.Env): openAI Gym environment
-        memory (PrioritizedReplayBuffer): replay memory to store transitions
-        batch_size (int): batch size for sampling
-        epsilon (float): parameter for epsilon greedy policy
-        epsilon_decay (float): step size to decrease epsilon
-        max_epsilon (float): max value of epsilon
-        min_epsilon (float): min value of epsilon
-        target_update (int): period for target model's hard update
-        gamma (float): discount factor
-        dqn (Network): model to train and select actions
-        dqn_target (Network): target model to update
-        optimizer (torch.optim): optimizer for training dqn
-        transition (list): transition information including
-                           state, action, reward, next_state, done
-        use_n_step (bool): whether to use n_step memory
-        n_step (int): step number to calculate n-step td error
-        memory_n (ReplayBuffer): n-step replay buffer
+    Attributs :
+        Network (objet) : architecture du réseau de neurones utilisé pour approximer la fonction de valeur.
+        env (gym.Env) : environnement Gym dans lequel l'agent évolue.
+        memory (PrioritizedReplayBuffer) : mémoire de rejouabilité avec priorités pour stocker les transitions.
+        batch_size (int) : taille des lots pour l'échantillonnage pendant l'entraînement.
+        target_update (int) : fréquence (en nombre de pas) de mise à jour du réseau cible.
+        epsilon (float) : paramètre de la politique ε-greedy.
+        epsilon_decay (float) : taux de décroissance de epsilon à chaque pas.
+        max_epsilon (float) : valeur maximale de epsilon.
+        min_epsilon (float) : valeur minimale de epsilon.
+        gamma (float) : facteur de réduction (discount) pour les récompenses futures.
+        dqn (Network) : réseau principal utilisé pour choisir les actions.
+        dqn_target (Network) : réseau cible utilisé pour stabiliser l’apprentissage.
+        optimizer (torch.optim) : optimiseur pour l’apprentissage du réseau principal.
+        transition (list) : transition actuelle composée de (état, action, récompense, état suivant, done).
+        support (torch.Tensor) : support discret utilisé dans le DQN catégoriel.
+        use_n_step (bool) : indique si l’apprentissage n-étapes est utilisé.
+        n_step (int) : nombre d’étapes dans le calcul du TD n-étapes.
+        memory_n (ReplayBuffer) : mémoire secondaire pour le TD n-étapes.
+        instant_reward (fonction) : fonction utilisée pour calculer la récompense instantanée.
+        is_test (bool) : mode test ou entraînement.
+        num_video (int) : numéro du dossier de la prochaine vidéo que l'on va crée durant le test
+        coord (int) : coordonnée de référence (peut dépendre de la configuration de l’environnement).
+        is_crash (bool) : indicateur de collision.
+        lst_recent_crashes (List[bool]) : historique des dernières collisions.
+        nb_crashes (int) : nombre total de collisions.
+        mask : carte du jeu dont on supprimer les informations superflus (mis à jour à chaque frame)
     """
 
     def __init__(
         self,
-        mask,
         Network : Type[object],
         env: gym.Env,
         memory_size: int,
@@ -51,6 +60,7 @@ class NoNoisyNoCategAgent:
         seed: int,
         seed_test: int,
         buffer_path: str,
+        reward_function:int =2,
         num_video: int = 0,
         max_epsilon: float = 1.0,
         min_epsilon: float = 0.1,
@@ -62,23 +72,30 @@ class NoNoisyNoCategAgent:
         # N-step Learning
         n_step: int = 3,
         coord: int = 0, # 187 si on ne fait pas la soustraction
-        is_crash: bool = False,
-        lst_recent_crashes: List = [False, False],
-        nb_crashes: int = 0
     ):
-        """Initialization.
+        """
+        Initialise un agent DQN sans bruit et sans categorical.
 
-        Args:
-            env (gym.Env): openAI Gym environment
-            memory_size (int): length of memory
-            batch_size (int): batch size for sampling
-            target_update (int): period for target model's hard update
-            lr (float): learning rate
-            gamma (float): discount factor
-            alpha (float): determines how much prioritization is used
-            beta (float): determines how much importance sampling is used
-            prior_eps (float): guarantees every transition can be sampled
-            n_step (int): step number to calculate n-step td error
+        Args :
+            Network (Type[object]) : classe représentant l’architecture du réseau de neurones.
+            env (gym.Env) : environnement Gym dans lequel l’agent évolue.
+            memory_size (int) : taille maximale de la mémoire de rejouabilité.
+            batch_size (int) : taille des lots pour l’échantillonnage.
+            target_update (int) : fréquence des mises à jour du réseau cible.
+            epsilon_decay (float) : taux de décroissance de epsilon à chaque étape.
+            seed (int) : graine aléatoire pour l’entraînement.
+            seed_test (int) : graine aléatoire pour le test.
+            buffer_path (str) : chemin pour sauvegarder les tampons de mémoire.
+            reward_function (int, optionnel) : identifiant de la fonction de récompense (par défaut = 2).
+            num_video (int, optionnel) : initialisation du numéro de la vidéo que l'on va crée durant le test (si on enregistre toutes les vidéos dans le même dossier, il peut y avoir un écrasement)
+            max_epsilon (float, optionnel) : valeur maximale de epsilon (par défaut = 1.0).
+            min_epsilon (float, optionnel) : valeur minimale de epsilon (par défaut = 0.1).
+            gamma (float, optionnel) : facteur de réduction pour les récompenses futures (par défaut = 0.99).
+            alpha (float, optionnel) : degré de priorité dans la mémoire PER (par défaut = 0.2).
+            beta (float, optionnel) : facteur d’importance dans l’échantillonnage PER (par défaut = 0.6).
+            prior_eps (float, optionnel) : petite constante pour garantir un échantillonnage non nul (par défaut = 1e-6).
+            n_step (int, optionnel) : nombre d’étapes pour le calcul n-step (par défaut = 3).
+            coord (int, optionnel) : coordonnée de référence dans l’environnement (par défaut = 0).
         """
         obs_dim = 84 * 84
         action_dim = env.action_space.n
@@ -133,15 +150,23 @@ class NoNoisyNoCategAgent:
         # transition to store in memory
         self.transition = list()
 
+        # Sélection de la fonction reward
+        if reward_function == 1:
+            self.instant_reward = instant_reward1
+        elif reward_function == 3:
+            self.instant_reward = instant_reward3
+        else : 
+            self.instant_reward = instant_reward2
+
         # mode: train / test
         self.is_test = False
         self.num_video = num_video
 
         self.coord = coord
-        self.is_crash = is_crash
-        self.lst_recent_crashes = lst_recent_crashes
-        self.nb_crashes = nb_crashes
-        self.mask = mask
+        self.is_crash = False
+        self.lst_recent_crashes = [False, False]
+        self.nb_crashes = 0
+        self.mask = None
 
         
 
@@ -259,46 +284,13 @@ class NoNoisyNoCategAgent:
         if self.is_crash and not self.lst_recent_crashes[0] and not self.lst_recent_crashes[1]:
             self.nb_crashes += 1
         self.lst_recent_crashes[0], self.lst_recent_crashes[1] = self.lst_recent_crashes[1], self.is_crash
-    
-    def instant_reward1 (self, game_reward, coord_variation) :
-        score = 0
-        if self.is_crash :
-            score = -100
-        elif coord_variation < -100 :
-            score = 100 * game_reward
-        else :
-            score = 2 * coord_variation
-        return score
-
-    def instant_reward2 (self, game_reward, coord_variation) :
-        score = 0
-        if self.is_crash :
-            score = -100
-        elif coord_variation < -100 :
-            score = 100
-        else :
-            if coord_variation > 0 :
-                score = 5
-            elif coord_variation == 0 :
-                score = 1
-            else :
-                score = -10
-        return score
-
-    def instant_reward3 (self, game_reward, coord_variation) :
-        score = 0
-        if coord_variation > 0 :
-            score = 0.5
-        elif coord_variation == 0 :
-            score = -0.01
-        return score
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool]:
         """Take an action and return the response of the env."""
         next_state, game_reward, terminated, truncated, _ = self.env.step(action)
         previous_coord = self.coord
         self.find_coord(next_state)
-        reward = self.instant_reward3 (game_reward, self.coord - previous_coord)
+        reward = self.instant_reward (self.is_crash, game_reward, self.coord - previous_coord)
         next_state = preprocess_observation(self.mask)  # Preprocess image
         done = terminated or truncated
 
@@ -525,23 +517,3 @@ class NoNoisyNoCategAgent:
         plt.figtext(0.45, -0.1, "Évolution des scores*, pertes et epsilons au fil de l'entraînement \n \n * : Un score est calculé du point de départ à l'atteinte de l'objectif par la fonction reward, il est donc différent du score du jeu.", 
             ha="left", fontsize=12)
         plt.show()
-    
-    def cleanup(self):
-        """Libère explicitement la mémoire occupée par l'agent."""
-
-        # Libérer les tensors PyTorch
-        del self.dqn
-        del self.dqn_target
-        del self.optimizer
-
-        # Libérer la mémoire des buffers de replay
-        del self.memory
-        if self.use_n_step:
-            del self.memory_n
-
-        # Nettoyage GPU si applicable
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        # Forcer la collecte des objets non référencés
-        gc.collect()

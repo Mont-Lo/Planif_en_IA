@@ -4,6 +4,7 @@ from buffers.PrioritizedReplayBuffer import PrioritizedReplayBuffer
 from buffers.ReplayBuffer import ReplayBuffer
 from reseaux.nn_rainbow import Network
 from utils.processing import preprocess_observation
+from utils.reward_function import instant_reward1, instant_reward2, instant_reward3
 from typing import Dict, List, Tuple
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -15,39 +16,41 @@ from torch.nn.utils import clip_grad_norm_
 import numpy as np
 import gc
 
-## Categorical DQN + Double DQN
-
-# The idea of Double Q-learning is to reduce overestimations by decomposing
-# the max operation in the target into action selection and action evaluation.
-# Here, we use `self.dqn` instead of `self.dqn_target` to obtain the target actions.
-
 
 class RainbowAgent:
-    """DQN Agent interacting with environment.
+    """
+    Agent DQN interagissant avec un environnement Gym pour le jeu Freeway
 
-    Attribute:
-        env (gym.Env): openAI Gym environment
-        memory (PrioritizedReplayBuffer): replay memory to store transitions
-        batch_size (int): batch size for sampling
-        target_update (int): period for target model's hard update
-        gamma (float): discount factor
-        dqn (Network): model to train and select actions
-        dqn_target (Network): target model to update
-        optimizer (torch.optim): optimizer for training dqn
-        transition (list): transition information including
-                           state, action, reward, next_state, done
-        v_min (float): min value of support
-        v_max (float): max value of support
-        atom_size (int): the unit number of support
-        support (torch.Tensor): support for categorical dqn
-        use_n_step (bool): whether to use n_step memory
-        n_step (int): step number to calculate n-step td error
-        memory_n (ReplayBuffer): n-step replay buffer
+    Attributs :
+        Network (objet) : architecture du réseau de neurones utilisé pour approximer la fonction de valeur.
+        env (gym.Env) : environnement Gym dans lequel l'agent évolue.
+        memory (PrioritizedReplayBuffer) : mémoire de rejouabilité avec priorités pour stocker les transitions.
+        batch_size (int) : taille des lots pour l'échantillonnage pendant l'entraînement.
+        target_update (int) : fréquence (en nombre de pas) de mise à jour du réseau cible.
+        gamma (float) : facteur de réduction (discount) pour les récompenses futures.
+        dqn (Network) : réseau principal utilisé pour choisir les actions.
+        dqn_target (Network) : réseau cible utilisé pour stabiliser l’apprentissage.
+        optimizer (torch.optim) : optimiseur pour l’apprentissage du réseau principal.
+        transition (list) : transition actuelle composée de (état, action, récompense, état suivant, done).
+        v_min (float) : valeur minimale du support pour le DQN catégoriel.
+        v_max (float) : valeur maximale du support pour le DQN catégoriel.
+        atom_size (int) : nombre d’unités du support (atomes) pour la distribution de valeur.
+        support (torch.Tensor) : support discret utilisé dans le DQN catégoriel.
+        use_n_step (bool) : indique si l’apprentissage n-étapes est utilisé.
+        n_step (int) : nombre d’étapes dans le calcul du TD n-étapes.
+        memory_n (ReplayBuffer) : mémoire secondaire pour le TD n-étapes.
+        instant_reward (fonction) : fonction utilisée pour calculer la récompense instantanée.
+        is_test (bool) : mode test ou entraînement.
+        num_video (int) : numéro du dossier de la prochaine vidéo que l'on va crée durant le test
+        coord (int) : coordonnée de référence (peut dépendre de la configuration de l’environnement).
+        is_crash (bool) : indicateur de collision.
+        lst_recent_crashes (List[bool]) : historique des dernières collisions.
+        nb_crashes (int) : nombre total de collisions.
+        mask : carte du jeu dont on supprimer les informations superflus (mis à jour à chaque frame)
     """
 
     def __init__(
         self,
-        mask,
         env: gym.Env,
         memory_size: int,
         batch_size: int,
@@ -55,6 +58,7 @@ class RainbowAgent:
         seed: int,
         seed_test: int,
         buffer_path: str,
+        reward_function:int =2,
         num_video: int = 0,
         gamma: float = 0.99,
         # PER parameters
@@ -68,26 +72,29 @@ class RainbowAgent:
         # N-step Learning
         n_step: int = 3,
         coord: int = 0, # 187 si on ne fait pas la soustraction
-        is_crash: bool = False,
-        lst_recent_crashes: List = [False, False],
-        nb_crashes: int = 0
     ):
-        """Initialization.
+        """
+        Initialise un agent DQN
 
-        Args:
-            env (gym.Env): openAI Gym environment
-            memory_size (int): length of memory
-            batch_size (int): batch size for sampling
-            target_update (int): period for target model's hard update
-            lr (float): learning rate
-            gamma (float): discount factor
-            alpha (float): determines how much prioritization is used
-            beta (float): determines how much importance sampling is used
-            prior_eps (float): guarantees every transition can be sampled
-            v_min (float): min value of support
-            v_max (float): max value of support
-            atom_size (int): the unit number of support
-            n_step (int): step number to calculate n-step td error
+        Args :
+            env (gym.Env) : environnement Gym dans lequel l’agent évolue.
+            memory_size (int) : taille maximale de la mémoire de rejouabilité.
+            batch_size (int) : taille des lots pour l’échantillonnage.
+            target_update (int) : fréquence des mises à jour du réseau cible.
+            seed (int) : graine aléatoire pour l’entraînement.
+            seed_test (int) : graine aléatoire pour le test.
+            buffer_path (str) : chemin pour sauvegarder les tampons de mémoire.
+            reward_function (int, optionnel) : identifiant de la fonction de récompense (par défaut = 2).
+            num_video (int, optionnel) : initialisation du numéro de la vidéo que l'on va crée durant le test (si on enregistre toutes les vidéos dans le même dossier, il peut y avoir un écrasement)
+            gamma (float, optionnel) : facteur de réduction pour les récompenses futures (par défaut = 0.99).
+            alpha (float, optionnel) : degré de priorité dans la mémoire PER (par défaut = 0.2).
+            beta (float, optionnel) : facteur d’importance dans l’échantillonnage PER (par défaut = 0.6).
+            prior_eps (float, optionnel) : petite constante pour garantir un échantillonnage non nul (par défaut = 1e-6).
+            v_min (float, optionnel) : valeur minimale du support pour le DQN catégoriel (par défaut = 0.0).
+            v_max (float, optionnel) : valeur maximale du support pour le DQN catégoriel (par défaut = 200.0).
+            atom_size (int, optionnel) : nombre d’unités discrètes du support (par défaut = 51).
+            n_step (int, optionnel) : nombre d’étapes pour le calcul n-step (par défaut = 3).
+            coord (int, optionnel) : coordonnée de référence dans l’environnement (par défaut = 0).
         """
         obs_dim = 84 * 84
         action_dim = env.action_space.n
@@ -146,15 +153,23 @@ class RainbowAgent:
         # transition to store in memory
         self.transition = list()
 
+        # Sélection de la fonction reward
+        if reward_function == 1:
+            self.instant_reward = instant_reward1
+        elif reward_function == 3:
+            self.instant_reward = instant_reward3
+        else : 
+            self.instant_reward = instant_reward2
+
         # mode: train / test
         self.is_test = False
         self.num_video = num_video
         
         self.coord = coord
-        self.is_crash = is_crash
-        self.lst_recent_crashes = lst_recent_crashes
-        self.nb_crashes = nb_crashes
-        self.mask = mask
+        self.is_crash = False
+        self.lst_recent_crashes = [False, False]
+        self.nb_crashes = 0
+        self.mask = None
 
     def select_action(self, state: np.ndarray) -> np.ndarray:
         """Select an action from the input state."""
@@ -268,45 +283,13 @@ class RainbowAgent:
             self.nb_crashes += 1
         self.lst_recent_crashes[0], self.lst_recent_crashes[1] = self.lst_recent_crashes[1], self.is_crash
     
-    def instant_reward1 (self, game_reward, coord_variation) :
-        score = 0
-        if self.is_crash :
-            score = -100
-        elif coord_variation < -100 :
-            score = 100 * game_reward
-        else :
-            score = 2 * coord_variation
-        return score
-
-    def instant_reward2 (self, game_reward, coord_variation) :
-        score = 0
-        if self.is_crash :
-            score = -100
-        elif coord_variation < -100 :
-            score = 100
-        else :
-            if coord_variation > 0 :
-                score = 5
-            elif coord_variation == 0 :
-                score = 1
-            else :
-                score = -10
-        return score
-
-    def instant_reward3 (self, game_reward, coord_variation) :
-        score = 0
-        if coord_variation > 0 :
-            score = 0.5
-        elif coord_variation == 0 :
-            score = -0.01
-        return score
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool]:
         """Take an action and return the response of the env."""
         next_state, game_reward, terminated, truncated, _ = self.env.step(action)
         previous_coord = self.coord
         self.find_coord(next_state)
-        reward = self.instant_reward1 (game_reward, self.coord - previous_coord)
+        reward = self.instant_reward(self.is_crash, game_reward, self.coord - previous_coord)
         next_state = preprocess_observation(self.mask)  # Preprocess image
         done = terminated or truncated
         
@@ -543,23 +526,3 @@ class RainbowAgent:
         plt.figtext(0.45, -0.1, "Évolution des scores*, pertes et epsilons au fil de l'entraînement \n \n * : Un score est calculé du point de départ à l'atteinte de l'objectif par la fonction reward, il est donc différent du score du jeu.", 
             ha="center", fontsize=12)
         plt.show()
-
-    def cleanup(self):
-        """Libère explicitement la mémoire occupée par l'agent."""
-
-        # Libérer les tensors PyTorch
-        del self.dqn
-        del self.dqn_target
-        del self.optimizer
-
-        # Libérer la mémoire des buffers de replay
-        del self.memory
-        if self.use_n_step:
-            del self.memory_n
-
-        # Nettoyage GPU si applicable
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        # Forcer la collecte des objets non référencés
-        gc.collect()
