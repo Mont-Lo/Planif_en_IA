@@ -3,12 +3,6 @@ import random
 from typing import Dict, List, Tuple
 from buffers.segment_tree import MinSegmentTree, SumSegmentTree
 from buffers.ReplayBuffer import ReplayBuffer
-    
-# `store` method returns boolean in order to inform 
-# if a N-step transition has been generated.
-
-# (Please see *02.per.ipynb* from rainbow-is-all-you-need 
-# for detailed description about PER.)
 
 class PrioritizedReplayBuffer(ReplayBuffer):
     """Prioritized Replay buffer.

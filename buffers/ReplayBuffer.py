@@ -1,14 +1,9 @@
 import os
-from os import PathLike
 
 import numpy as np
 from collections import deque
 from typing import Deque, Dict, Tuple
 
-# Same as the basic N-step buffer.
-# (Please see *01.dqn.ipynb*, *07.n_step_learning.ipynb*
-# from rainbow-is-all-you-need for detailed description
-# about the basic (n-step) replay buffer.)
 
 class ReplayBuffer:
     """A simple numpy replay buffer."""
