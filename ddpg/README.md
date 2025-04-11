@@ -18,10 +18,9 @@
 
 ## DDPG_agent (compris dans ddpg.py)
 
-Les modifications d'hyperparamètres des réseaux (gamma, lr_c, lr_a, tau et sigma) se font directement dans l'initialisation
-La modification des récompenses se fait directement dans la fonction train, pour l'instant il y a juste la détection des collisions sans pénalisations.
-
-Pour l'instant, le nombre d'épisodes est égale à 15 à modifier dans le train.
+- Les modifications d'hyperparamètres des réseaux (gamma, lr_c, lr_a, tau et sigma) se font directement dans l'initialisation
+- La modification des récompenses se fait directement dans la fonction train, pour l'instant il y a juste la détection des collisions sans pénalisations.
+- Le nombre d'épisodes est égale à 15 à modifier dans le train.
 
 ## Execution
 
