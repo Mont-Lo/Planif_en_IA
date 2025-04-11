@@ -14,7 +14,6 @@ from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
 import numpy as np
 import torch.nn.functional as F
-import gc
 
 class NoNoisyNoCategAgent:
     """
